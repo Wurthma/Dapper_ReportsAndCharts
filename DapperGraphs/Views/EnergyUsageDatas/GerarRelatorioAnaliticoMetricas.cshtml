@@ -1,0 +1,48 @@
+﻿@model IEnumerable<DapperGraphs.ViewModels.RelatorioMetricasViewModels>
+
+@{
+    ViewBag.Title = "Relatório Analítico de Métricas";
+}
+
+<h2>Relatório Analítico de Métricas <small>(Kg de óleo equivalente per capita)</small></h2>
+
+<table class="table">
+    <tr>
+        <th>
+            @Html.DisplayNameFor(model => model.NomePais)
+        </th>
+        <th>
+            @Html.DisplayNameFor(model => model.Media)
+        </th>
+        <th>
+            @Html.DisplayNameFor(model => model.DesvioPadrao)
+        </th>
+        <th>
+            @Html.DisplayNameFor(model => model.Minimo)
+        </th>
+        <th>
+            @Html.DisplayNameFor(model => model.Maximo)
+        </th>
+    </tr>
+
+@foreach (var item in Model) {
+    <tr>
+        <td>
+            @Html.DisplayFor(modelItem => item.NomePais)
+        </td>
+        <td>
+            @Html.DisplayFor(modelItem => item.Media)
+        </td>
+        <td>
+            @Html.DisplayFor(modelItem => item.DesvioPadrao)
+        </td>
+        <td>
+            @Html.DisplayFor(modelItem => item.Minimo)
+        </td>
+        <td>
+            @Html.DisplayFor(modelItem => item.Maximo)
+        </td>
+    </tr>
+}
+
+</table>

@@ -1,0 +1,59 @@
+﻿@{
+    ViewBag.Title = "Relatório Gráfico de Colunas";
+}
+
+<h2>Relatório Gráfico de Colunas</h2>
+
+<div id="top_x_div"></div>
+
+@section Scripts {
+    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+    <script type="text/javascript">
+        $(document).ready(function () {
+            $.ajax({
+                type: 'POST',
+                dataType: 'json',
+                contentType: 'application/json',
+                url: '@Url.Action("GerarDadosRelatorioTop10", "EnergyUsageDatas")',
+                success: function (result) {
+                    google.charts.load('current', { 'packages': ['bar'] });
+                    google.charts.setOnLoadCallback(function () {
+                        drawChart(result);
+                    });
+                }
+            });
+        });
+
+        function drawChart(result) {
+            var arrays = [
+                result.map(value => value.Pais),
+                result.map(value => value.Valor)
+            ];
+
+            arrays[0].splice(0, 0, ' ');
+            arrays[1].splice(0, 0, ' ');
+
+            //console.log(arrays);
+
+            var data = new google.visualization.arrayToDataTable(arrays);
+
+            var options = {
+                height: 800,
+                legend: { position: 'none' },
+                chart: {
+                    title: 'Top 10 Países',
+                    subtitle: 'Kg de óleo equivalente per capita'
+                },
+                axes: {
+                    x: {
+                        0: { side: 'top' } // Top x-axis.
+                    }
+                },
+                bar: { groupWidth: "90%" }
+            };
+
+            var chart = new google.charts.Bar(document.getElementById('top_x_div'));
+            chart.draw(data, google.charts.Bar.convertOptions(options));
+        }
+    </script>
+}

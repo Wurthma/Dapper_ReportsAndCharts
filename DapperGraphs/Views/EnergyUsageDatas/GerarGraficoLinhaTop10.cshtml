@@ -1,0 +1,69 @@
+﻿@{
+    ViewBag.Title = "Relatório Gráfico de Linha";
+}
+
+<h2>Relatório Gráfico de Linha - Top 10 países</h2>
+
+<div id="linechart_material"></div>
+
+@section Scripts {
+    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+    <script type="text/javascript">
+        $(document).ready(function () {
+            $.ajax({
+                type: 'POST',
+                dataType: 'json',
+                contentType: 'application/json',
+                url: '@Url.Action("GerarDadosRelatorioLinhaTop10", "EnergyUsageDatas")',
+                success: function (result) {
+                    google.charts.load('current', { 'packages': ['line'] });
+                    google.charts.setOnLoadCallback(function () {
+                        drawLineChart(result);
+                    });
+                }
+            });
+        });
+
+        function drawLineChart(result) {
+            var data = new google.visualization.DataTable();
+
+            var arrays = result.map(value => value.Countrys);
+
+            data.addColumn('number', 'Ano');
+            //Adiciona cada país nas colunas do gráfico
+            var arrayLength = arrays[0].length;
+            for (var i = 0; i < arrayLength; i++) {
+                data.addColumn('number', arrays[0][i]);
+            }
+
+            //Montar array com valores por ano
+            var dataLineChart = result[0].ListDataPerYear.map(dataPerYear => [dataPerYear.Year, ...dataPerYear.ListValues]);
+
+            data.addRows(dataLineChart);
+
+            var arrays = [
+                result.map(value => value.Year),
+            ];
+                
+
+            var options = {
+                legend: {
+                    position: 'top',
+                    textStyle: {
+                        color: '#999'
+                    }
+                },
+                chart: {
+                    title: 'Gráfico de uso de energia per capita',
+                    subtitle: 'Valor (Kg de óleo equivalente per capita)'
+                },
+                width: 1200,
+                height: 800
+            };
+
+            var chart = new google.charts.Line(document.getElementById('linechart_material'));
+
+            chart.draw(data, google.charts.Line.convertOptions(options));
+        }
+    </script>
+}
