@@ -155,6 +155,10 @@ namespace DapperGraphs.Controllers
             return Json(result);
         }
 
+        /// <summary>
+        /// Gráfico de linhas com o TOP 10 países e seus valores de uso de energia per capita.
+        /// </summary>
+        /// <returns>Retorna a view com uma gráfico de linhas populado por <see cref="GerarDadosRelatorioLinhaTop10"/></returns>
         public ActionResult GerarGraficoLinhaTop10()
         {
             return View();
