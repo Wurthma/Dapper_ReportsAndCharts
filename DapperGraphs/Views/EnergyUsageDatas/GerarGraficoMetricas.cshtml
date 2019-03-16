@@ -1,0 +1,123 @@
+﻿@model DapperGraphs.ViewModels.MetricChartParameterViewModel
+@{
+    ViewBag.Title = "Gráfico Métricas";
+}
+
+<h2> </h2>
+<button type="button" id="btnApplyChart" class="btn btn-primary col-md-3">Aplicar</button>
+<div class="form-horizontal col-md-9">
+    @Html.ValidationSummary(true, "", new { @class = "text-danger" })
+    <div class="form-group">
+        @Html.LabelFor(model => model.AnoInicial, htmlAttributes: new { @class = "control-label col-md-2" })
+        <div class="col-md-4">
+            @Html.EditorFor(model => model.AnoInicial, new { htmlAttributes = new { @class = "form-control" } })
+            @Html.ValidationMessageFor(model => model.AnoInicial, "", new { @class = "text-danger" })
+        </div>
+        @Html.LabelFor(model => model.AnoFinal, htmlAttributes: new { @class = "control-label col-md-2" })
+        <div class="col-md-4">
+            @Html.EditorFor(model => model.AnoFinal, new { htmlAttributes = new { @class = "form-control" } })
+            @Html.ValidationMessageFor(model => model.AnoFinal, "", new { @class = "text-danger" })
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="list-group col-md-3 scrollit">
+        @foreach (SelectListItem item in Model.ListaPaises)
+        {
+            <span class="list-group-item"><input type="checkbox" name="ListaIdPaises" value="@item.Value" /> @item.Text</span>
+        }
+    </div>
+    <div id="chartMetricas" class="col-md-9"></div>
+</div>
+
+@section Scripts {
+    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+    <script type="text/javascript">
+
+        $("#btnApplyChart").click(function () {
+            loadChartData();
+        });
+
+        //Redesenhar o gráfico com os dados dos países selecionados
+        function loadChartData() {
+            var listaIdPaises = new Array();
+            $("input[name='ListaIdPaises']:checked").each(function (i) {
+                listaIdPaises.push($(this).val());
+            });
+
+            var requestData = {
+                AnoInicial: $.trim($('#AnoInicial').val()),
+                AnoFinal: $.trim($('#AnoFinal').val()),
+                ListaIdPaises: listaIdPaises
+            };
+
+            $.ajax({
+                type: 'POST',
+                dataType: 'json',
+                contentType: "application/json; charset=utf-8;",
+                url: '@Url.Action("GerarDadosGraficoMetricas", "EnergyUsageDatas")',
+                data: JSON.stringify(requestData),
+                success: function (relatorioMetricas) {
+                    if (relatorioMetricas) {
+                        reloadChart(relatorioMetricas);
+                    }
+                },
+                error: function () {
+                    alert("Oops! Algo deu errado.");
+                }
+            });
+        }
+        
+        //Desenha o gráfico com valores padrões ao carregar a página
+        google.charts.load('current', { 'packages': ['bar'] });
+        google.charts.setOnLoadCallback(drawChart);
+
+        function drawChart() {
+            var dataChartJson = @Html.Raw(Json.Encode(ViewBag.StartChart));
+
+            var dataAsArray = dataChartJson.map(entrada => [entrada.NomePais, entrada.Media, entrada.DesvioPadrao, entrada.Minimo, entrada.Maximo]);
+            dataAsArray.unshift(['País', 'Média', 'Desvio Padrão', 'Mínimo', 'Máximo',]);
+
+            var data = google.visualization.arrayToDataTable(dataAsArray);
+
+            var options = {
+                chart: {
+                    title: 'Métricas de uso de energia per capita',
+                    subtitle: 'Valor em Kg de óleo per capita',
+                },
+                bars: 'horizontal', // Required for Material Bar Charts.
+                height: 600,
+                width: 800
+            };
+
+            var chart = new google.charts.Bar(document.getElementById('chartMetricas'));
+            chart.draw(data, google.charts.Bar.convertOptions(options));
+        }
+
+        //Recarregar com os novos dados
+        function reloadChart(relatorioMetricas) {
+            var dataAsArray = relatorioMetricas.map(entrada => [entrada.NomePais, entrada.Media, entrada.DesvioPadrao, entrada.Minimo, entrada.Maximo]);
+            dataAsArray.unshift(['País', 'Média', 'Desvio Padrão', 'Mínimo', 'Máximo',]);
+
+            console.log(relatorioMetricas);
+            console.log(dataAsArray);
+
+            var chartMetrics = new google.charts.Bar(document.getElementById('chartMetricas'))
+
+            var chartMetricsData = google.visualization.arrayToDataTable(dataAsArray);
+
+            var options = {
+                chart: {
+                    title: 'Métricas de uso de energia per capita',
+                    subtitle: 'Valor em Kg de óleo per capita',
+                },
+                bars: 'horizontal', // Required for Material Bar Charts.
+                height: 600,
+                width: 800
+            };
+
+            chartMetrics.draw(chartMetricsData, google.charts.Bar.convertOptions(options));
+        }
+    </script>
+}

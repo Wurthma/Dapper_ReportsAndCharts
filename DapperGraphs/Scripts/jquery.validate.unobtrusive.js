@@ -411,7 +411,7 @@
 
         setValidationValues(options, "remote", value);
     });
-    adapters.add("password", ["min", "nonalphamin", "regex"], function (options) {
+    adapters.add("Senha", ["min", "nonalphamin", "regex"], function (options) {
         if (options.params.min) {
             setValidationValues(options, "minlength", options.params.min);
         }

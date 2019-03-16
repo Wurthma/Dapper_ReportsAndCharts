@@ -12,6 +12,7 @@ using Dapper;
 
 namespace DapperGraphs.Controllers
 {
+    [Authorize]
     public class CountriesController : Controller
     {
         private ApplicationDbContext db = new ApplicationDbContext();

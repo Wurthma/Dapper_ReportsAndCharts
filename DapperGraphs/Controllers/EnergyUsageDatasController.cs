@@ -10,9 +10,12 @@ using System.Web.Mvc;
 using DapperGraphs.Models;
 using Dapper;
 using DapperGraphs.ViewModels;
+using Newtonsoft.Json;
+using System.Data.SqlClient;
 
 namespace DapperGraphs.Controllers
 {
+    [Authorize]
     public class EnergyUsageDatasController : Controller
     {
         private ApplicationDbContext db = new ApplicationDbContext();
@@ -28,17 +31,19 @@ namespace DapperGraphs.Controllers
                         join countries c on c.CountryId = e.CountryId
                         order by c.Name";
 
-            //Dapper:
-            var energyUsageDatas = await db.Database.Connection.QueryAsync<EnergyUsageData, Country, EnergyUsageData>(sql,
-                (energyUsageData, country) =>
-                {
-                    energyUsageData.Country = country;
-                    return energyUsageData;
-                },
-                splitOn: "Value,CountryId"
-            );
+            using (db)
+            {
+                var energyUsageDatas = await db.Database.Connection.QueryAsync<EnergyUsageData, Country, EnergyUsageData>(sql,
+                    (energyUsageData, country) =>
+                    {
+                        energyUsageData.Country = country;
+                        return energyUsageData;
+                    },
+                    splitOn: "Value,CountryId"
+                );
 
-            return View(energyUsageDatas);
+                return View(energyUsageDatas);
+            }
         }
 
         /// <summary>
@@ -48,12 +53,14 @@ namespace DapperGraphs.Controllers
         /// <returns>View de RelatorioAnalitico com os campos a serem parametrizados pelo usuários.</returns>
         public ActionResult RelatorioAnalitico()
         {
-            var paises = db.Countries.OrderBy(c => c.Name).ToList();
-            List<SelectListItem> listItemPaises = paises.Select(x => new SelectListItem() { Value = x.CountryId.ToString(), Text = x.Name.ToString() }).ToList();
-            listItemPaises.Insert(0, new SelectListItem { Value = string.Empty, Text = "Escolher..." });
-            ViewBag.Paises = listItemPaises;
-
-            return View();
+            using (db)
+            {
+                var paises = db.Countries.OrderBy(c => c.Name).ToList();
+                List<SelectListItem> listItemPaises = paises.Select(x => new SelectListItem() { Value = x.CountryId.ToString(), Text = x.Name.ToString() }).ToList();
+                listItemPaises.Insert(0, new SelectListItem { Value = string.Empty, Text = "Escolher..." });
+                ViewBag.Paises = listItemPaises;
+                return View();
+            }
         }
 
         /// <summary>
@@ -73,23 +80,26 @@ namespace DapperGraphs.Controllers
                         and e.Value > 0
                         order by e.Year";
 
-            //Dapper:
-            var energyUsageDatas = await db.Database.Connection.QueryAsync<EnergyUsageData, Country, EnergyUsageData>(sql,
-                (energyUsageData, country) =>
-                {
-                    energyUsageData.Country = country;
-                    return energyUsageData;
-                },
-                splitOn: "Value,CountryId",
-                param: new
-                {
-                    IdPais = paises.ToString(),
-                    IdAnoInicio = anoInicial,
-                    IdAnoFim = anoFinal
-                }
-            );
+            using (db)
+            {
+                //Dapper:
+                var energyUsageDatas = await db.Database.Connection.QueryAsync<EnergyUsageData, Country, EnergyUsageData>(sql,
+                    (energyUsageData, country) =>
+                    {
+                        energyUsageData.Country = country;
+                        return energyUsageData;
+                    },
+                    splitOn: "Value,CountryId",
+                    param: new
+                    {
+                        IdPais = paises.ToString(),
+                        IdAnoInicio = anoInicial,
+                        IdAnoFim = anoFinal
+                    }
+                );
 
-            return View(energyUsageDatas);
+                return View(energyUsageDatas);
+            }
         }
 
         /// <summary>
@@ -116,17 +126,99 @@ namespace DapperGraphs.Controllers
                             and e.Value > 0
                             group by c.Name
                             order by c.Name";
+            
+            using (db)
+            {
+                var relatorioMetricas = await db.Database.Connection.QueryAsync<RelatorioMetricasViewModels>(sql,
+                    param: new
+                    {
+                        IdAnoInicio = anoInicial,
+                        IdAnoFim = anoFinal
+                    }
+                );
 
-            //Dapper:
-            var relatorioMetricas = await db.Database.Connection.QueryAsync<RelatorioMetricasViewModels>(sql,
-                param: new
-                {
-                    IdAnoInicio = anoInicial,
-                    IdAnoFim = anoFinal
-                }
-            );
+                return View(relatorioMetricas);
+            }
+        }
 
-            return View(relatorioMetricas);
+        /// <summary>
+        /// Gerar gráfico de metricas com Média, Desvio Padrão, Mínimo e Máximo de 4 países aleatórios.
+        /// Após carregar o gráfico com os países aleatórios o usuários pode configurar os filtros e período como preferir.
+        /// </summary>
+        /// <returns>Retorna a view com o gráfico com os países selecionados aleatóriamente.</returns>
+        public ActionResult GerarGraficoMetricas()
+        {
+            MetricChartParameterViewModel metricChartData = new MetricChartParameterViewModel();
+            metricChartData.AnoInicial = 1990;
+            metricChartData.AnoFinal = 2005;
+
+            using (db)
+            {
+                var paises = db.Countries.ToList();
+
+                metricChartData.ListaPaises = paises.OrderBy(o => o.Name).Select(x =>
+                    new SelectListItem()
+                    {
+                        Value = x.CountryId.ToString(),
+                        Text = x.Name
+                    });
+
+                string sql = @"select TOP(4)
+                            c.Name as NomePais, AVG(e.Value) as media, STDEVP(e.Value) as DesvioPadrao,  MIN(e.Value) as Minimo, MAX(e.Value) as Maximo
+                            from EnergyUsageDatas e
+                            join countries c on c.CountryId = e.CountryId
+                            where e.Year >= @IdAnoInicio and e.Year <= @IdAnoFim
+                            and c.CountryId in @listaIdPaises
+                            and e.Value > 0
+                            group by c.Name
+                            order by NEWID()";
+
+                ViewBag.StartChart = db.Database.Connection.Query<RelatorioMetricasViewModels>(sql,
+                    param: new
+                    {
+                        IdAnoInicio = metricChartData.AnoInicial,
+                        IdAnoFim = metricChartData.AnoFinal,
+                        listaIdPaises = paises.Select(s => s.CountryId).ToArray()
+                    }
+                );
+
+                return View(metricChartData);
+            }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="anoInicial"></param>
+        /// <param name="anoFinal"></param>
+        /// <param name="listaIdPaises"></param>
+        /// <returns></returns>
+        /// <remarks>https://jsfiddle.net/Wurthmann/hfjutm57/10/</remarks>
+        [HttpPost]
+        public JsonResult GerarDadosGraficoMetricas(MetricChartParameterViewModel paramsMetricChart)
+        {
+            string sql = @"select c.Name as NomePais, AVG(e.Value) as media, STDEVP(e.Value) as DesvioPadrao,  MIN(e.Value) as Minimo, MAX(e.Value) as Maximo
+                            from EnergyUsageDatas e
+                            join countries c on c.CountryId = e.CountryId
+                            where e.Year >= @IdAnoInicio and e.Year <= @IdAnoFim
+                            and c.CountryId in @listaIdPaises
+                            and e.Value > 0
+                            group by c.Name
+                            order by c.Name";
+
+            using (db)
+            {
+                var relatorioMetricas = db.Database.Connection.Query<RelatorioMetricasViewModels>(sql,
+                    param: new
+                    {
+                        IdAnoInicio = paramsMetricChart.AnoInicial,
+                        IdAnoFim = paramsMetricChart.AnoFinal,
+                        listaIdPaises = paramsMetricChart.ListaIdPaises
+                    }
+                );
+
+                return Json(relatorioMetricas);
+            }
         }
 
         /// <summary>
@@ -145,14 +237,17 @@ namespace DapperGraphs.Controllers
         [HttpPost]
         public JsonResult GerarDadosRelatorioTop10()
         {
-            var result = db.Database.Connection.Query<ColumnGraphViewModel>(@"select top (10) 
+            using (db)
+            {
+                var result = db.Database.Connection.Query<ColumnGraphViewModel>(@"select top (10) 
                 c.Name Pais, sum(e.Value) Valor
                 from Countries c
                 join EnergyUsageDatas e on e.CountryId = c.CountryId
                 group by c.Name
                 order by Valor desc");
 
-            return Json(result);
+                return Json(result);
+            }
         }
 
         /// <summary>
@@ -172,8 +267,11 @@ namespace DapperGraphs.Controllers
         public JsonResult GerarDadosRelatorioLinhaTop10()
         {
             List<LineGraphJSONViewModel> result = new List<LineGraphJSONViewModel>();
+            IEnumerable<LineGraphDataViewModel> listaValores;
 
-            var listaValores = db.Database.Connection.Query<LineGraphDataViewModel>(
+            using (db)
+            {
+                listaValores = db.Database.Connection.Query<LineGraphDataViewModel>(
                 @"select c.CountryId, c.Name, e.Year, e.Value 
                 from EnergyUsageDatas e
                 join Countries c on c.CountryId = e.CountryId
@@ -188,6 +286,7 @@ namespace DapperGraphs.Controllers
 	                ) Top10
                 )
                 order by c.Name, e.Year");
+            }
 
             var listaPaises = listaValores.Select(p => p.CountryId).Distinct();
 
